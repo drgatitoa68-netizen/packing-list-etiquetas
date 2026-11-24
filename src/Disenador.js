@@ -146,6 +146,7 @@ const DIS_HORA_ = function () { return Utilities.formatDate(new Date(), Session.
 
 function camposDiseno_(diseno) {
   const vistos = {}, lista = [];
+  if (diseno.juego && diseno.juego.length) vistos.copia = true;   // lo llena el juego de copias
   (diseno.elementos || []).forEach(function (e) {
     String((e.tipo === 'texto' ? e.texto : e.datos) || '').replace(/\{([a-zA-Z0-9_]{1,30})\}/g, function (m, n) {
       if (!vistos[n] && ['fecha', 'hora', 'usuario'].indexOf(n) === -1) { vistos[n] = true; lista.push(n); }
@@ -203,7 +204,11 @@ function normalizarDiseno_(d) {
       if (e.tipo === 'linea') return Object.assign(base, { w: entero_(e.w, 1, ancho, 200), h: entero_(e.h, 1, papel, 3) });
       return Object.assign(base, { w: entero_(e.w, 4, ancho, 200), h: entero_(e.h, 4, papel, 100), grosor: entero_(e.grosor, 1, 20, 2) });
     });
-  return { ancho: ancho, alto: alto, papel: papel, elementos: elementos };
+  // Juego de copias: la misma etiqueta se imprime una vez por leyenda (ej. ORIGINAL, COPIA) y la
+  // leyenda llena el campo {copia}. Así se escriben los datos una sola vez y salen todas juntas.
+  const juego = (Array.isArray(d.juego) ? d.juego : []).map(function (x) { return String(x || '').trim().substring(0, 40); })
+    .filter(function (x) { return x; }).slice(0, 6);
+  return { ancho: ancho, alto: alto, papel: papel, elementos: elementos, juego: juego };
 }
 
 // ---------------------------------------------------------------------
@@ -384,18 +389,26 @@ function disenoAOps_(diseno, valores, vista) {
 
 /** Vista previa / impresión de una etiqueta libre. */
 function api_etiquetaLibre_(diseno, valores, copias, imprimir, nombre) {
-  const r = disenoAOps_(diseno, valores || {}, !imprimir);
+  valores = valores || {};
+  const juego = normalizarDiseno_(diseno).juego;
+  const conCopia = function (l) { return l ? Object.assign({}, valores, { copia: l }) : valores; };
+  // Vista previa: la primera leyenda del juego. Impresión: una etiqueta por leyenda, en orden.
+  const r = disenoAOps_(diseno, conCopia(juego[0]), !imprimir);
   copias = entero_(copias, 1, 100, 1);
-  const epl = opsAEpl_(opsParaImpresora_(r.ops), copias, r.diseno.ancho, r.diseno.papel);
+  const eplLista = (juego.length ? juego : [null]).map(function (l, i) {
+    const ops = i === 0 ? r.ops : disenoAOps_(diseno, conCopia(l), !imprimir).ops;
+    return opsAEpl_(opsParaImpresora_(ops), copias, r.diseno.ancho, r.diseno.papel);
+  });
+  const epl = eplLista.join('');
   if (imprimir) {
     const titulo = String(nombre || 'Etiqueta libre').substring(0, 60);
-    registrarHistorial_('IMPRIMIR_LIBRE', titulo + ' · ' + copias + ' copia(s)', titulo);
+    registrarHistorial_('IMPRIMIR_LIBRE', titulo + ' · ' + (juego.length ? 'juego ' + juego.join(' + ') + ' · ' : '') + copias + ' copia(s)', titulo);
     const resumen = (r.diseno.elementos || []).filter(function (e) { return e.tipo === 'texto'; })
       .map(function (e) { return reemplazarCampos_(e.texto, valores); }).join(' | ').substring(0, 500);
     registrarEtiquetasGeneradas_([[new Date(), USUARIO_ACTUAL_ || '', 'LIBRE', titulo, copias + ' copia(s)', '', '', '',
       Math.round(r.diseno.ancho / 8) + 'x' + Math.round(r.diseno.alto / 8) + 'mm', r.diseno.elementos.length, '', '', '', resumen]]);
   }
-  return { epl: epl, ops: r.ops, cajas: r.cajas, avisos: r.avisos, campos: camposDiseno_(r.diseno),
+  return { epl: epl, eplLista: eplLista, juego: juego, ops: r.ops, cajas: r.cajas, avisos: r.avisos, campos: camposDiseno_(r.diseno),
     ancho: r.diseno.ancho, alto: r.diseno.papel, diseno: r.diseno };
 }
 
@@ -413,7 +426,64 @@ function hojaPlantillas_() {
   return ws;
 }
 
+// ---------------------------------------------------------------------
+// Plantillas ya definidas: se agregan solas una vez a la hoja PLANTILLAS (si alguien la borra,
+// no vuelve). Quedan como cualquier otra: el admin puede editarlas.
+// ---------------------------------------------------------------------
+/** Transferencia entre CEDIs: rollo 10,4 x 15,4 cm, juego ORIGINAL + COPIA (cada una a página completa). */
+function plantillaTransferenciaCedis_() {
+  let n = 0;
+  const id = function () { return 't' + (n++); };
+  const T = function (x, y, w, h, texto, o) {
+    return Object.assign({ id: id(), tipo: 'texto', x: x, y: y, w: w, h: h, texto: texto, ajustar: true, alinear: 'izq', rot: 0 }, o || {});
+  };
+  const L = function (x, y, w, h) { return { id: id(), tipo: 'linea', x: x, y: y, w: w, h: h }; };
+  const X = 16, W = 800, IZQ = 620;   // IZQ: ancho de los textos que comparten fila con el QR
+  const e = [
+    L(X, 24, W, 76), T(X + 12, 28, W - 24, 68, '{copia}', { alinear: 'centro', invertido: true }),
+    T(X, 106, W, 40, 'TRANSFERENCIA ENTRE CEDIS', { alinear: 'centro' }), L(X, 152, W, 4),
+    T(X, 162, IZQ, 54, 'DE: {cediOrigen}'), T(X, 220, IZQ, 54, 'A: {cediDestino}'),
+    T(X, 280, IZQ, 44, 'TRANSF: {nroTransferencia}'), T(X, 328, IZQ, 44, 'ENVIO: {nroEnvio}'),
+    { id: id(), tipo: 'qr', x: 652, y: 166, datos: '{nroTransferencia}|{nroEnvio}|{articulo}|{lote}|{cantidad}', modulo: 5 },
+    L(X, 380, W, 3),
+    T(X, 388, W, 48, 'ARTICULO: {articulo}'), T(X, 440, W, 80, '{descripcion}'), T(X, 524, W, 46, 'LOTE: {lote}'),
+    T(X, 574, W, 56, 'CANTIDAD: {cantidad} {um}'), T(X, 634, W, 46, 'PALLETS: {nroPallets}     CAJAS: {cajas}'),
+    L(X, 688, W, 3),
+    T(X, 696, W, 48, 'CHOFER: {chofer}'), T(X, 748, W, 48, 'C.I.: {cedula}     PLACA: {placa}'),
+    T(X, 800, W, 32, '{fecha} {hora} - {usuario}'), L(X, 838, W, 3),
+    { id: id(), tipo: 'barras', x: 40, y: 848, datos: '{nroEnvio}', simbologia: 'code128', modulo: 3, alto: 86, legible: true }
+  ];
+  // Tres firmas: entrega la bodega, el chofer recibe la carga, y el CEDI destino la recibe
+  const fw = 248, firmas = [['ENTREGA (BODEGA)', '{usuario}'], ['CHOFER', 'C.I. {cedula}'], ['RECIBE CEDI DESTINO', 'Nombre y fecha']];
+  firmas.forEach(function (f, i) {
+    const fx = X + i * (fw + 28);
+    const fijo = { ajustar: false, fuente: 2, mh: 1, mv: 2 };   // mismo tamaño en las tres firmas (12 x 32 pt por letra)
+    e.push(T(fx, 968, fw, 32, f[0], fijo), L(fx, 1112, fw, 3), T(fx, 1120, fw, 32, f[1], fijo));
+  });
+  e.push(T(X, 1168, W, 28, 'ORIGINAL: viaja con el producto - COPIA: respaldo de bodega', { alinear: 'centro' }));
+  return { ancho: 832, alto: 1232, papel: 1232, elementos: e,
+    juego: ['ORIGINAL - VIAJA CON EL PRODUCTO', 'COPIA - RESPALDO DE BODEGA'] };
+}
+const PLANTILLAS_DEFINIDAS_ = [{ clave: 'transferenciaCedis_v1', id: 'PTRANSCEDI', nombre: 'Transferencia entre CEDIs (original + copia)', diseno: plantillaTransferenciaCedis_ }];
+function sembrarPlantillasDefinidas_() {
+  const props = PropertiesService.getScriptProperties();
+  const faltan = PLANTILLAS_DEFINIDAS_.filter(function (p) { return !props.getProperty('plantilla_' + p.clave); });
+  if (!faltan.length) return;
+  conLock_(function () {
+    const ws = hojaPlantillas_();
+    const n = Math.max(ws.getLastRow() - 1, 0);
+    const nombres = (n ? ws.getRange(2, 2, n, 1).getValues() : []).map(function (r) { return String(r[0]).toLowerCase(); });
+    faltan.forEach(function (p) {
+      if (props.getProperty('plantilla_' + p.clave)) return;
+      if (nombres.indexOf(p.nombre.toLowerCase()) === -1)
+        ws.getRange(ws.getLastRow() + 1, 1, 1, PLANTILLA_COLS.length).setValues([[p.id, p.nombre, JSON.stringify(normalizarDiseno_(p.diseno())), new Date(), 'App']]);
+      props.setProperty('plantilla_' + p.clave, 'SI');
+    });
+  });
+}
+
 function api_plantillasListar_() {
+  try { sembrarPlantillasDefinidas_(); } catch (e) { console.error('Plantillas definidas: ' + e); }
   const ws = hojaPlantillas_();
   if (ws.getLastRow() < 2) return [];
   return ws.getRange(2, 1, ws.getLastRow() - 1, PLANTILLA_COLS.length).getValues()

@@ -400,6 +400,9 @@
                 <h2 class="font-bold text-sm">Guardar plantilla</h2>
                 <input id="disNombre" type="text" maxlength="60" placeholder="Nombre (ej. Cliente Demo - caja)" oninput="marcarSucioDis_()"
                   class="w-full border rounded-lg px-3 py-2 text-sm">
+                <label class="block text-xs font-semibold text-slate-600" title="Imprime la misma etiqueta una vez por leyenda; la leyenda llena el campo {copia}">Juego de copias (opcional)
+                  <input id="disJuego" type="text" maxlength="200" placeholder="ORIGINAL / COPIA  · usa {copia} en el diseño" oninput="cambiarJuegoDis_()"
+                    class="w-full border rounded-lg px-3 py-2 text-sm mt-1 font-normal"></label>
                 <div class="flex gap-2">
                   <button onclick="guardarPlantilla_(false)" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-lg py-2">Guardar</button>
                   <button onclick="guardarPlantilla_(true)" class="border rounded-lg px-3 text-sm font-semibold hover:bg-slate-50" title="Guardar como una plantilla nueva">Como nueva</button>
@@ -3056,6 +3059,13 @@
       refrescarDis_(true);
     }
 
+    // Juego de copias: "ORIGINAL / COPIA" → una etiqueta por leyenda al imprimir (la leyenda llena {copia})
+    function cambiarJuegoDis_() {
+      if (!DIS) return;
+      DIS.diseno.juego = document.getElementById('disJuego').value.split('/').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 6);
+      marcarSucioDis_(); refrescarDis_(false);
+    }
+
     function marcarSucioDis_() {
       if (!DIS) return;
       DIS.sucio = true;
@@ -3066,6 +3076,7 @@
       document.getElementById('disTitulo').textContent = DIS.nombre || 'Etiqueta nueva';
       document.getElementById('disSucio').classList.toggle('hidden', !DIS.sucio);
       document.getElementById('disNombre').value = DIS.nombre || '';
+      document.getElementById('disJuego').value = (DIS.diseno.juego || []).join(' / ');
       document.getElementById('btnEliminarPlantilla').classList.toggle('hidden', !DIS.id);
       // tamaño
       const d = DIS.diseno;
@@ -3361,14 +3372,18 @@
       const box = document.getElementById('disCampos');
       const actuales = valoresDis_();
       const ya = Array.prototype.map.call(box.querySelectorAll('input[data-campo]'), function (i) { return i.dataset.campo; }).join(',');
-      if (ya === campos.join(',')) return; // mismos campos: no tocar lo que se está escribiendo
-      box.innerHTML = campos.length
+      const juego = (DIS && DIS.diseno.juego) || [];
+      const nota = juego.length ? '<p class="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-1.5">🧾 Imprime un juego de ' + juego.length +
+        ' etiquetas: ' + escHtml_(juego.join(' + ')) + '. Llenas los datos una sola vez.</p>' : '';
+      if (ya === campos.join(',') && box.dataset.juego === juego.join('|')) return; // mismos campos: no tocar lo que se está escribiendo
+      box.dataset.juego = juego.join('|');
+      box.innerHTML = nota + (campos.length
         ? campos.map(function (c) {
             return '<label class="block text-xs font-semibold text-slate-600">' + escHtml_(c) +
               '<input data-campo="' + escHtml_(c) + '" type="text" value="' + escHtml_(actuales[c] || '') + '" class="w-full border rounded-lg px-3 py-2 text-sm mt-1 font-mono"' +
               ' oninput="refrescarDis_(false)"></label>';
           }).join('')
-        : '<p class="text-xs text-slate-500">Esta etiqueta no tiene campos para llenar.</p>';
+        : '<p class="text-xs text-slate-500">Esta etiqueta no tiene campos para llenar.</p>');
     }
 
     function pintarAvisosDis_(avisos) {
@@ -3392,8 +3407,10 @@
         const res = await new Promise(function (ok, fail) {
           gsr().withSuccessHandler(ok).withFailureHandler(fail).api_etiquetaLibre(DIS.diseno, valores, copias, true, DIS.nombre || 'Etiqueta libre');
         });
-        const r = await enviarAImpresora_([res.epl], 'LIBRE', (DIS.nombre || 'Etiqueta libre') + ' · ' + copias + ' copia(s)');
-        btn.textContent = r.modo === 'directo' ? '✓ Enviada (' + copias + ')' : '✓ Guardada para imprimir en el PC';
+        const juego = res.juego || [];
+        const desc = (DIS.nombre || 'Etiqueta libre') + ' · ' + (juego.length ? 'juego ' + juego.join(' + ') + ' · ' : '') + copias + ' copia(s)';
+        const r = await enviarAImpresora_(res.eplLista || [res.epl], 'LIBRE', desc);
+        btn.textContent = r.modo === 'directo' ? '✓ Enviada (' + (juego.length ? juego.length + ' etiquetas' : copias) + ')' : '✓ Guardada para imprimir en el PC';
         setTimeout(function () { btn.textContent = 'Imprimir en Zebra'; }, 2500);
       } catch (e) {
         btn.textContent = 'Imprimir en Zebra';
