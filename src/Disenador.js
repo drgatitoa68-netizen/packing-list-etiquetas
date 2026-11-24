@@ -430,41 +430,66 @@ function hojaPlantillas_() {
 // Plantillas ya definidas: se agregan solas una vez a la hoja PLANTILLAS (si alguien la borra,
 // no vuelve). Quedan como cualquier otra: el admin puede editarlas.
 // ---------------------------------------------------------------------
-/** Transferencia entre CEDIs: rollo 10,4 x 15,4 cm, juego ORIGINAL + COPIA (cada una a página completa). */
+/**
+ * Transferencia entre CEDIs: rollo 10,4 x 15,4 cm, juego ORIGINAL + COPIA (cada una a página completa).
+ * Formato de casillas: cada dato en su recuadro, con su título arriba; el valor se ajusta solo a su casilla
+ * (corto = grande, largo = más chico o en 2 líneas), así datos de distinto largo no se amontonan.
+ */
 function plantillaTransferenciaCedis_() {
   let n = 0;
   const id = function () { return 't' + (n++); };
+  const e = [];
   const T = function (x, y, w, h, texto, o) {
-    return Object.assign({ id: id(), tipo: 'texto', x: x, y: y, w: w, h: h, texto: texto, ajustar: true, alinear: 'izq', rot: 0 }, o || {});
+    e.push(Object.assign({ id: id(), tipo: 'texto', x: x, y: y, w: w, h: h, texto: texto, ajustar: true, alinear: 'izq', rot: 0 }, o || {}));
   };
-  const L = function (x, y, w, h) { return { id: id(), tipo: 'linea', x: x, y: y, w: w, h: h }; };
-  const X = 16, W = 800, IZQ = 620;   // IZQ: ancho de los textos que comparten fila con el QR
-  const e = [
-    L(X, 24, W, 76), T(X + 12, 28, W - 24, 68, '{copia}', { alinear: 'centro', invertido: true }),
-    T(X, 106, W, 40, 'TRANSFERENCIA ENTRE CEDIS', { alinear: 'centro' }), L(X, 152, W, 4),
-    T(X, 162, IZQ, 54, 'DE: {cediOrigen}'), T(X, 220, IZQ, 54, 'A: {cediDestino}'),
-    T(X, 280, IZQ, 44, 'TRANSF: {nroTransferencia}'), T(X, 328, IZQ, 44, 'ENVIO: {nroEnvio}'),
-    { id: id(), tipo: 'qr', x: 652, y: 166, datos: '{nroTransferencia}|{nroEnvio}|{articulo}|{lote}|{cantidad}', modulo: 5 },
-    L(X, 380, W, 3),
-    T(X, 388, W, 48, 'ARTICULO: {articulo}'), T(X, 440, W, 80, '{descripcion}'), T(X, 524, W, 46, 'LOTE: {lote}'),
-    T(X, 574, W, 56, 'CANTIDAD: {cantidad} {um}'), T(X, 634, W, 46, 'PALLETS: {nroPallets}     CAJAS: {cajas}'),
-    L(X, 688, W, 3),
-    T(X, 696, W, 48, 'CHOFER: {chofer}'), T(X, 748, W, 48, 'C.I.: {cedula}     PLACA: {placa}'),
-    T(X, 800, W, 32, '{fecha} {hora} - {usuario}'), L(X, 838, W, 3),
-    { id: id(), tipo: 'barras', x: 40, y: 848, datos: '{nroEnvio}', simbologia: 'code128', modulo: 3, alto: 86, legible: true }
-  ];
-  // Tres firmas: entrega la bodega, el chofer recibe la carga, y el CEDI destino la recibe
-  const fw = 248, firmas = [['ENTREGA (BODEGA)', '{usuario}'], ['CHOFER', 'C.I. {cedula}'], ['RECIBE CEDI DESTINO', 'Nombre y fecha']];
+  const caja = function (x, y, w, h) { e.push({ id: id(), tipo: 'recuadro', x: x, y: y, w: w, h: h, grosor: 2 }); };
+  const TITULO = { ajustar: false, fuente: 2, mh: 1, mv: 1 };   // título de casilla: siempre el mismo tamaño (12 x 16 pt)
+  // Casilla: recuadro + título + valor ajustado al espacio que queda
+  const celda = function (x, y, w, h, titulo, valor, alinear) {
+    caja(x, y, w, h);
+    T(x + 10, y + 8, w - 20, 16, titulo, TITULO);
+    T(x + 10, y + 30, w - 20, h - 38, valor, { alinear: alinear || 'izq' });
+  };
+  const X = 16, W = 800;
+  // Encabezado
+  e.push({ id: id(), tipo: 'linea', x: X, y: 24, w: W, h: 72 });
+  T(X + 12, 28, W - 24, 64, '{copia}', { alinear: 'centro', invertido: true });
+  T(X, 104, W, 34, 'TRANSFERENCIA ENTRE CEDIS', { alinear: 'centro' });
+  // Casillas (ancho total 800)
+  let y = 146;
+  celda(X, y, 400, 104, 'CEDI ORIGEN', '{cediOrigen}'); celda(X + 400, y, 400, 104, 'CEDI DESTINO', '{cediDestino}'); y += 104;
+  celda(X, y, 300, 84, 'N. TRANSFERENCIA', '{nroTransferencia}'); celda(X + 300, y, 300, 84, 'N. ENVIO', '{nroEnvio}');
+  celda(X + 600, y, 200, 84, 'FECHA', '{fecha} {hora}', 'centro'); y += 84;
+  celda(X, y, 300, 84, 'ARTICULO', '{articulo}'); celda(X + 300, y, 300, 84, 'LOTE', '{lote}'); celda(X + 600, y, 200, 84, 'UNIDAD', '{um}', 'centro'); y += 84;
+  celda(X, y, W, 104, 'DESCRIPCION', '{descripcion}'); y += 104;
+  celda(X, y, 300, 96, 'CANTIDAD', '{cantidad}', 'centro'); celda(X + 300, y, 250, 96, 'PALLETS', '{nroPallets}', 'centro');
+  celda(X + 550, y, 250, 96, 'CAJAS', '{cajas}', 'centro'); y += 96;
+  celda(X, y, 400, 92, 'CHOFER', '{chofer}'); celda(X + 400, y, 200, 92, 'CEDULA', '{cedula}', 'centro');
+  celda(X + 600, y, 200, 92, 'PLACA', '{placa}', 'centro'); y += 92;
+  // Códigos: barras del envío (pistola) + QR con el resumen
+  // Módulo 2: entran envíos de hasta ~20 caracteres dentro de la casilla; QR módulo 3 para datos largos
+  caja(X, y, 560, 150); T(X + 10, y + 8, 300, 16, 'CODIGO DE ENVIO', TITULO);
+  e.push({ id: id(), tipo: 'barras', x: X + 30, y: y + 32, datos: '{nroEnvio}', simbologia: 'code128', modulo: 2, alto: 84, legible: true });
+  caja(X + 560, y, 240, 150);
+  e.push({ id: id(), tipo: 'qr', x: X + 616, y: y + 18, datos: '{nroTransferencia}|{nroEnvio}|{articulo}|{lote}|{cantidad}', modulo: 3 });
+  y += 150;
+  celda(X, y, W, 96, 'OBSERVACIONES', '{observaciones}'); y += 96;
+  // Firmas: entrega la bodega, el chofer recibe la carga, el CEDI destino la recibe
+  const fw = Math.floor(W / 3), firmas = [['ENTREGA (BODEGA)', '{usuario}'], ['CHOFER', 'C.I. {cedula}'], ['RECIBE CEDI DESTINO', 'Nombre y fecha']];
   firmas.forEach(function (f, i) {
-    const fx = X + i * (fw + 28);
-    const fijo = { ajustar: false, fuente: 2, mh: 1, mv: 2 };   // mismo tamaño en las tres firmas (12 x 32 pt por letra)
-    e.push(T(fx, 968, fw, 32, f[0], fijo), L(fx, 1112, fw, 3), T(fx, 1120, fw, 32, f[1], fijo));
+    const fx = X + i * fw, ancho = i === 2 ? W - 2 * fw : fw;
+    caja(fx, y, ancho, 214);
+    T(fx + 10, y + 8, ancho - 20, 16, f[0], TITULO);
+    e.push({ id: id(), tipo: 'linea', x: fx + 14, y: y + 160, w: ancho - 28, h: 2 });
+    T(fx + 10, y + 168, ancho - 20, 36, f[1], { alinear: 'centro' });
   });
-  e.push(T(X, 1168, W, 28, 'ORIGINAL: viaja con el producto - COPIA: respaldo de bodega', { alinear: 'centro' }));
+  y += 214;
+  T(X, y + 8, W, 24, 'ORIGINAL: viaja con el producto - COPIA: respaldo de bodega', { alinear: 'centro' });
   return { ancho: 832, alto: 1232, papel: 1232, elementos: e,
     juego: ['ORIGINAL - VIAJA CON EL PRODUCTO', 'COPIA - RESPALDO DE BODEGA'] };
 }
-const PLANTILLAS_DEFINIDAS_ = [{ clave: 'transferenciaCedis_v1', id: 'PTRANSCEDI', nombre: 'Transferencia entre CEDIs (original + copia)', diseno: plantillaTransferenciaCedis_ }];
+// clave nueva = versión nueva del diseño: reemplaza la anterior en la hoja solo si nadie la editó (actualizadoPor = 'App').
+const PLANTILLAS_DEFINIDAS_ = [{ clave: 'transferenciaCedis_v2', id: 'PTRANSCEDI', nombre: 'Transferencia entre CEDIs (original + copia)', diseno: plantillaTransferenciaCedis_ }];
 function sembrarPlantillasDefinidas_() {
   const props = PropertiesService.getScriptProperties();
   const faltan = PLANTILLAS_DEFINIDAS_.filter(function (p) { return !props.getProperty('plantilla_' + p.clave); });
@@ -472,11 +497,14 @@ function sembrarPlantillasDefinidas_() {
   conLock_(function () {
     const ws = hojaPlantillas_();
     const n = Math.max(ws.getLastRow() - 1, 0);
-    const nombres = (n ? ws.getRange(2, 2, n, 1).getValues() : []).map(function (r) { return String(r[0]).toLowerCase(); });
+    const filas = n ? ws.getRange(2, 1, n, PLANTILLA_COLS.length).getValues() : [];
     faltan.forEach(function (p) {
       if (props.getProperty('plantilla_' + p.clave)) return;
-      if (nombres.indexOf(p.nombre.toLowerCase()) === -1)
-        ws.getRange(ws.getLastRow() + 1, 1, 1, PLANTILLA_COLS.length).setValues([[p.id, p.nombre, JSON.stringify(normalizarDiseno_(p.diseno())), new Date(), 'App']]);
+      const fila = [p.id, p.nombre, JSON.stringify(normalizarDiseno_(p.diseno())), new Date(), 'App'];
+      const i = filas.findIndex(function (r) { return String(r[0]) === p.id; });
+      if (i >= 0) { if (String(filas[i][4]) === 'App') ws.getRange(i + 2, 1, 1, PLANTILLA_COLS.length).setValues([fila]); }   // versión anterior sin editar: se actualiza
+      else if (!filas.some(function (r) { return String(r[1]).toLowerCase() === p.nombre.toLowerCase(); }))
+        ws.getRange(ws.getLastRow() + 1, 1, 1, PLANTILLA_COLS.length).setValues([fila]);
       props.setProperty('plantilla_' + p.clave, 'SI');
     });
   });
