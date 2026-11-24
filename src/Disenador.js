@@ -457,39 +457,31 @@ function plantillaTransferenciaCedis_() {
   T(X, 104, W, 34, 'TRANSFERENCIA ENTRE CEDIS', { alinear: 'centro' });
   // Casillas (ancho total 800)
   let y = 146;
-  celda(X, y, 400, 104, 'CEDI ORIGEN', '{cediOrigen}'); celda(X + 400, y, 400, 104, 'CEDI DESTINO', '{cediDestino}'); y += 104;
-  celda(X, y, 300, 84, 'N. TRANSFERENCIA', '{nroTransferencia}'); celda(X + 300, y, 300, 84, 'N. ENVIO', '{nroEnvio}');
-  celda(X + 600, y, 200, 84, 'FECHA', '{fecha} {hora}', 'centro'); y += 84;
-  celda(X, y, 300, 84, 'ARTICULO', '{articulo}'); celda(X + 300, y, 300, 84, 'LOTE', '{lote}'); celda(X + 600, y, 200, 84, 'UNIDAD', '{um}', 'centro'); y += 84;
-  celda(X, y, W, 104, 'DESCRIPCION', '{descripcion}'); y += 104;
-  celda(X, y, 300, 96, 'CANTIDAD', '{cantidad}', 'centro'); celda(X + 300, y, 250, 96, 'PALLETS', '{nroPallets}', 'centro');
-  celda(X + 550, y, 250, 96, 'CAJAS', '{cajas}', 'centro'); y += 96;
-  celda(X, y, 400, 92, 'CHOFER', '{chofer}'); celda(X + 400, y, 200, 92, 'CEDULA', '{cedula}', 'centro');
-  celda(X + 600, y, 200, 92, 'PLACA', '{placa}', 'centro'); y += 92;
-  // Códigos: barras del envío (pistola) + QR con el resumen
-  // Módulo 2: entran envíos de hasta ~20 caracteres dentro de la casilla; QR módulo 3 para datos largos
-  caja(X, y, 560, 150); T(X + 10, y + 8, 300, 16, 'CODIGO DE ENVIO', TITULO);
-  e.push({ id: id(), tipo: 'barras', x: X + 30, y: y + 32, datos: '{nroEnvio}', simbologia: 'code128', modulo: 2, alto: 84, legible: true });
-  caja(X + 560, y, 240, 150);
-  e.push({ id: id(), tipo: 'qr', x: X + 616, y: y + 18, datos: '{nroTransferencia}|{nroEnvio}|{articulo}|{lote}|{cantidad}', modulo: 3 });
-  y += 150;
-  celda(X, y, W, 96, 'OBSERVACIONES', '{observaciones}'); y += 96;
-  // Firmas: entrega la bodega, el chofer recibe la carga, el CEDI destino la recibe
-  const fw = Math.floor(W / 3), firmas = [['ENTREGA (BODEGA)', '{usuario}'], ['CHOFER', 'C.I. {cedula}'], ['RECIBE CEDI DESTINO', 'Nombre y fecha']];
+  celda(X, y, 400, 112, 'CEDI ORIGEN', '{cediOrigen}'); celda(X + 400, y, 400, 112, 'CEDI DESTINO', '{cediDestino}'); y += 112;
+  celda(X, y, 300, 88, 'N. TRANSFERENCIA', '{nroTransferencia}'); celda(X + 300, y, 300, 88, 'N. ENVIO', '{nroEnvio}');
+  celda(X + 600, y, 200, 88, 'FECHA', '{fecha} {hora}', 'centro'); y += 88;
+  celda(X, y, 300, 88, 'ARTICULO', '{articulo}'); celda(X + 300, y, 300, 88, 'LOTE', '{lote}'); celda(X + 600, y, 200, 88, 'UNIDAD', '{um}', 'centro'); y += 88;
+  celda(X, y, W, 120, 'DESCRIPCION', '{descripcion}'); y += 120;
+  celda(X, y, 400, 100, 'PALLETS', '{nroPallets}', 'centro'); celda(X + 400, y, 400, 100, 'CAJAS', '{cajas}', 'centro'); y += 100;
+  celda(X, y, 400, 96, 'CHOFER', '{chofer}'); celda(X + 400, y, 200, 96, 'CEDULA', '{cedula}', 'centro');
+  celda(X + 600, y, 200, 96, 'PLACA', '{placa}', 'centro'); y += 96;
+  celda(X, y, W, 140, 'OBSERVACIONES', '{observaciones}'); y += 140;
+  // Firmas: entrega la bodega y el chofer recibe la carga
+  const fw = W / 2, firmas = [['ENTREGA (BODEGA)', '{usuario}'], ['CHOFER', 'C.I. {cedula}']];
   firmas.forEach(function (f, i) {
-    const fx = X + i * fw, ancho = i === 2 ? W - 2 * fw : fw;
-    caja(fx, y, ancho, 214);
-    T(fx + 10, y + 8, ancho - 20, 16, f[0], TITULO);
-    e.push({ id: id(), tipo: 'linea', x: fx + 14, y: y + 160, w: ancho - 28, h: 2 });
-    T(fx + 10, y + 168, ancho - 20, 36, f[1], { alinear: 'centro' });
+    const fx = X + i * fw;
+    caja(fx, y, fw, 240);
+    T(fx + 10, y + 8, fw - 20, 16, f[0], TITULO);
+    e.push({ id: id(), tipo: 'linea', x: fx + 20, y: y + 186, w: fw - 40, h: 2 });
+    T(fx + 10, y + 194, fw - 20, 36, f[1], { alinear: 'centro' });
   });
-  y += 214;
+  y += 240;
   T(X, y + 8, W, 24, 'ORIGINAL: viaja con el producto - COPIA: respaldo de bodega', { alinear: 'centro' });
   return { ancho: 832, alto: 1232, papel: 1232, elementos: e,
     juego: ['ORIGINAL - VIAJA CON EL PRODUCTO', 'COPIA - RESPALDO DE BODEGA'] };
 }
 // clave nueva = versión nueva del diseño: reemplaza la anterior en la hoja solo si nadie la editó (actualizadoPor = 'App').
-const PLANTILLAS_DEFINIDAS_ = [{ clave: 'transferenciaCedis_v2', id: 'PTRANSCEDI', nombre: 'Transferencia entre CEDIs (original + copia)', diseno: plantillaTransferenciaCedis_ }];
+const PLANTILLAS_DEFINIDAS_ = [{ clave: 'transferenciaCedis_v3', id: 'PTRANSCEDI', nombre: 'Transferencia entre CEDIs (original + copia)', diseno: plantillaTransferenciaCedis_ }];
 function sembrarPlantillasDefinidas_() {
   const props = PropertiesService.getScriptProperties();
   const faltan = PLANTILLAS_DEFINIDAS_.filter(function (p) { return !props.getProperty('plantilla_' + p.clave); });
