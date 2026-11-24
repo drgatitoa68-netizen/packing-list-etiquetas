@@ -587,10 +587,9 @@ function api_importarFormato_(codigo) {
   return r;
 }
 
-function importarZpl_(codigo) {
+function importarZplBloque_(codigo) {
   const avisos = [];
   const partes = codigo.split(/\^XZ/i);
-  if (partes.filter(function (p) { return /\^XA/i.test(p); }).length > 1) avisos.push('El archivo trae varias etiquetas: se importó la primera.');
   const zpl = partes[0];
   const el = [];
   let ancho = ZEBRA_ANCHO, alto = 0, lhX = 0, lhY = 0, x = 0, y = 0, base = false;
@@ -661,7 +660,8 @@ function importarZpl_(codigo) {
             else if (bloque.alineacion === 'R') tx = x + Math.max(0, bloque.ancho - anchoTxt);
           }
           el.push({ id: nuevoId(), tipo: 'texto', x: tx, y: base ? Math.max(0, y - EPL_ALTO[f.fuente] * f.mv) : y, texto: dato,
-            fuente: f.fuente, mh: f.mh, mv: f.mv, invertido: reverso, rot: giroTxt });
+            fuente: f.fuente, mh: f.mh, mv: f.mv, invertido: reverso, rot: giroTxt,
+            fb: bloque && bloque.ancho ? { x: x, ancho: bloque.ancho, alin: bloque.alineacion } : null });   // ^FB original (lo usa el juego de copias)
         }
         break;
       }
@@ -674,6 +674,42 @@ function importarZpl_(codigo) {
   avisos.push('Revisa tamaños y posiciones: la PC43t usa sus propias fuentes (EPL), los textos pueden quedar un poco distintos.');
   if (!alto) alto = Math.max(ZEBRA_ALTO, el.reduce(function (mx, e) { return Math.max(mx, e.y + (e.h || e.alto || 60)); }, 0) + 20);
   return { diseno: { ancho: Math.min(ancho, DIS_MAX_ANCHO), alto: alto, papel: alto, elementos: el }, avisos: avisos, copias: copias };
+}
+
+/**
+ * ZPL con varias etiquetas (^XA … ^XZ). Si son la misma etiqueta y solo cambia un texto (ej. ORIGINAL / COPIA),
+ * se importa UNA plantilla con juego de copias: ese texto pasa a {copia} y al imprimir sale una etiqueta por leyenda.
+ * Si las etiquetas son distintas, se importa la primera (como antes).
+ */
+function importarZpl_(codigo) {
+  const bloques = String(codigo).split(/\^XZ/i).filter(function (p) { return /\^XA/i.test(p); }).map(function (p) { return p + '^XZ'; });
+  const r = importarZplBloque_(bloques[0] || codigo);
+  const limpiar = function (res) { res.diseno.elementos.forEach(function (e) { delete e.fb; }); return res; };
+  if (bloques.length < 2) return limpiar(r);
+  const otros = bloques.slice(1).map(importarZplBloque_), E = r.diseno.elementos;
+  const igual = otros.every(function (o) {
+    return o.diseno.elementos.length === E.length && o.diseno.elementos.every(function (e, i) { return e.tipo === E[i].tipo && e.y === E[i].y; });
+  });
+  if (!igual) { r.avisos.unshift('El archivo trae ' + bloques.length + ' etiquetas distintas: se importó la primera.'); return limpiar(r); }
+  const difieren = E.map(function (e, i) { return i; }).filter(function (i) {
+    return E[i].tipo === 'texto' && otros.some(function (o) { return o.diseno.elementos[i].texto !== E[i].texto; });
+  });
+  if (!difieren.length) {
+    r.copias = (r.copias || 1) * bloques.length;
+    r.avisos.unshift('El archivo trae ' + bloques.length + ' etiquetas idénticas: se importó una con ' + r.copias + ' copias.');
+    return limpiar(r);
+  }
+  const e = E[difieren[0]];
+  r.diseno.juego = [e.texto].concat(otros.map(function (o) { return o.diseno.elementos[difieren[0]].texto; }));
+  e.texto = '{copia}';
+  if (e.fb) {   // el texto vuelve a su bloque ^FB: se centra/alinea solo, sea cual sea la leyenda
+    Object.assign(e, { x: e.fb.x, w: e.fb.ancho, h: EPL_ALTO[e.fuente] * e.mv + 4, ajustar: true,
+      alinear: e.fb.alin === 'C' ? 'centro' : e.fb.alin === 'R' ? 'der' : 'izq' });
+  }
+  r.avisos.unshift('El archivo trae ' + bloques.length + ' etiquetas iguales salvo «' + r.diseno.juego.join(' / ') +
+    '»: se importó como UNA plantilla con juego de copias (imprime las ' + bloques.length + ' seguidas con los mismos datos).');
+  if (difieren.length > 1) r.avisos.push('Otros textos también cambian entre las etiquetas; se usó el primero como {copia}. Revísalo antes de guardar.');
+  return limpiar(r);
 }
 
 function importarEpl_(codigo) {
