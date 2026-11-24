@@ -43,4 +43,7 @@ cualquiera con la URL puede llamarla. No subir credenciales (`.clasprc.json` est
 ## Versión en producción
 | Fecha | Implementación | Contenido |
 |---|---|---|
+| 2026-11-24 | @46 (`9541335`) | Plantilla Transferencia entre CEDIs (original + copia), juego de copias, importar ZPL con varias etiquetas |
 | (antes de este repo) | @45 | Diseñador: rollo completo 10,5 x 15,4 |
+
+Volver a la versión anterior si hiciera falta: Implementar → Gestionar implementaciones → ✏️ → versión 45.
