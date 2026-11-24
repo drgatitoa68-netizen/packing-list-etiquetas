@@ -476,12 +476,11 @@ function plantillaTransferenciaCedis_() {
     T(fx + 10, y + 194, fw - 20, 36, f[1], { alinear: 'centro' });
   });
   y += 240;
-  T(X, y + 8, W, 24, 'ORIGINAL: viaja con el producto - COPIA: respaldo de bodega', { alinear: 'centro' });
   return { ancho: 832, alto: 1232, papel: 1232, elementos: e,
-    juego: ['ORIGINAL - VIAJA CON EL PRODUCTO', 'COPIA - RESPALDO DE BODEGA'] };
+    juego: ['ORIGINAL', 'COPIA - RESPALDO DE BODEGA'] };
 }
 // clave nueva = versión nueva del diseño: reemplaza la anterior en la hoja solo si nadie la editó (actualizadoPor = 'App').
-const PLANTILLAS_DEFINIDAS_ = [{ clave: 'transferenciaCedis_v3', id: 'PTRANSCEDI', nombre: 'Transferencia entre CEDIs (original + copia)', diseno: plantillaTransferenciaCedis_ }];
+const PLANTILLAS_DEFINIDAS_ = [{ clave: 'transferenciaCedis_v4', id: 'PTRANSCEDI', nombre: 'Transferencia entre CEDIs (original + copia)', diseno: plantillaTransferenciaCedis_ }];
 function sembrarPlantillasDefinidas_() {
   const props = PropertiesService.getScriptProperties();
   const faltan = PLANTILLAS_DEFINIDAS_.filter(function (p) { return !props.getProperty('plantilla_' + p.clave); });
